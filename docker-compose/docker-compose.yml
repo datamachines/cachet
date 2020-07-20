@@ -1,0 +1,104 @@
+version: "3"
+
+networks:
+  cachet:
+  cachet-backend:
+
+services:
+  postgres:
+    image: postgres:9.5
+    ports:
+      - 7512:7512
+    volumes:
+      - /var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    restart: always
+    networks:
+      - cachet-backend
+
+  cachet:
+    build:
+      context: .
+      args:
+        - cachet_ver=2.4
+    ports:
+      - 9100:8000
+    environment:
+      - DB_DRIVER=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=postgres
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - DB_PREFIX=chq_
+      - APP_KEY=base64:Qc5OLxvc99Rj3e/qcKlZ7P5oNbNJ9pgwSkTZJm4Ng84=
+      - APP_LOG=errorlog
+      - APP_URL=https://status.dsra.io
+      - DEBUG=false
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_DRIVER=redis
+      - MAIL_DRIVER=smtp
+      - MAIL_HOST=maildev
+      - MAIL_PORT=1025
+      - MAIL_USERNAME=cachet
+      - MAIL_PASSWORD=C1CAFCFB2E4B480ABE14C1DAF215C170
+      - MAIL_ADDRESS=maildev
+      - MAIL_NAME=Data Machines Status Page
+      - MAIL_ENCRYPTION=
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    labels:
+      - "traefik.backend=cachet"
+      - "traefik.frontend.rule=Host:cachet.dsra.io,status.dsra.io,status.datamachines.io,cachet.datamachines.io;"
+      - "traefik.frontend.passHostHeader=true"
+      - "traefik.port=8000"
+      - "traefik.protocol=http"
+      - "traefik.frontend.entryPoints=https,http"
+    networks:
+      - cachet
+      - cachet-backend
+    depends_on:
+      - postgres
+      - redis
+      - maildev
+    restart: on-failure
+
+  redis:
+    image: "redis:alpine"
+    hostname: cache.foreigncredentials.org
+    ports:
+      - "6379:6379"
+    labels:
+      - "traefik.enable=false"
+    networks:
+      - cachet-backend
+    restart: always
+
+
+  maildev:
+    image: deardooley/maildev:latest
+    environment:
+      - OUTGOING_HOST=
+      - OUTGOING_USER=
+      - OUTGOING_PASS=
+      - INCOMING_USER=cachet_mailer
+      - INCOMING_PASS=C1CAFCFB2E4B480ABE14C1DAF215C170
+      - BASE_PATHNAME=/mail
+      - VERBOSE=1
+    ports:
+      - 32025:1025
+      - 1080:80
+    labels:
+      - "traefik.backend=maildev"
+      - "traefik.frontend.rule=Host:cachet.dsra.io,status.dsra.io,status.datamachines.io,cachet.datamachines.io;PathPrefix:/mail"
+      - "traefik.frontend.passHostHeader=true"
+      - "traefik.port=80"
+      - "traefik.protocol=http"
+      - "traefik.frontend.entryPoints=https,http"
+    networks:
+      - cachet
+      - cachet-backend
+    restart: always
